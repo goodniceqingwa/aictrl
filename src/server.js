@@ -8,6 +8,7 @@ const { SessionRunner } = require('./session-runner');
 const { createGitWorktree, listChangedFiles } = require('./git');
 const { checkBoundary } = require('./boundary');
 const { resolveSessionWorkspace } = require('./workspace');
+const { parseProtocolBlocks } = require('./protocol');
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -84,6 +85,9 @@ function createServer({ projectDir, statePath, runtimeDir = path.dirname(statePa
   const runner = new SessionRunner({
     onEvent: event => {
       store.addEvent(event.sessionId || null, event.type, event);
+      if (event.type === 'terminal.output') {
+        handleProtocolOutput({ store, events, event });
+      }
       if (event.type === 'session.exit') {
         store.updateSession(event.sessionId, { status: 'exited' });
       }
@@ -114,6 +118,31 @@ function createServer({ projectDir, statePath, runtimeDir = path.dirname(statePa
       });
     }
   };
+}
+
+function handleProtocolOutput({ store, events, event }) {
+  const blocks = parseProtocolBlocks(event.text || '');
+
+  for (const block of blocks) {
+    if (block.type === 'delegation_request') {
+      const decision = store.createDecision('delegation_request', event.sessionId, block.payload);
+      const created = { type: 'decision.created', sessionId: event.sessionId, decision };
+      store.addEvent(event.sessionId, created.type, created);
+      events.publish(created);
+    }
+
+    if (block.type === 'scope_plan') {
+      const payload = block.payload || {};
+      store.setScope(event.sessionId, {
+        write: Array.isArray(payload.write) ? payload.write : [],
+        read: Array.isArray(payload.read) ? payload.read : [],
+        risky: Array.isArray(payload.risky) ? payload.risky : []
+      });
+      const created = { type: 'scope.plan_created', sessionId: event.sessionId, scope: payload };
+      store.addEvent(event.sessionId, created.type, created);
+      events.publish(created);
+    }
+  }
 }
 
 async function handleRequest({ req, res, projectDir, runtimeDir, store, runner, events, createWorktree }) {

@@ -138,6 +138,40 @@ test('sets scope and reports boundary decisions', async () => {
   await app.close();
 });
 
+test('creates delegation decisions from cli protocol output', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'auth',
+        command: '/bin/sh',
+        args: [
+          '-lc',
+          'printf "AICTRL_DELEGATION_REQUEST:\\n{\\"toSession\\":\\"api\\",\\"requestedScope\\":[\\"src/api/session.js\\"]}\\nAICTRL_END\\n"'
+        ],
+        task: 'emit delegation'
+      })
+    });
+
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    const state = await fetch(`${base}/api/state`).then(res => res.json());
+    const decision = state.decisions.find(item => item.type === 'delegation_request');
+    assert.equal(decision.status, 'pending');
+    assert.equal(decision.payload.toSession, 'api');
+    assert.deepEqual(decision.payload.requestedScope, ['src/api/session.js']);
+  } finally {
+    await app.close();
+  }
+});
+
 test('serves browser console html', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
   const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
