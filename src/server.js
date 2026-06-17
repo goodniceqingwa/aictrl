@@ -5,8 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { StateStore } = require('./state');
 const { SessionRunner } = require('./session-runner');
-const { createGitWorktree, listChangedFiles } = require('./git');
+const { createGitWorktree, listChangedFiles: defaultListChangedFiles } = require('./git');
 const { checkBoundary } = require('./boundary');
+const { BoundaryWatcher } = require('./boundary-watcher');
 const { resolveSessionWorkspace } = require('./workspace');
 const { parseProtocolBlocks } = require('./protocol');
 
@@ -79,9 +80,28 @@ function createEventHub() {
   return { publish, subscribe };
 }
 
-function createServer({ projectDir, statePath, runtimeDir = path.dirname(statePath), port = 0, createWorktree = createGitWorktree }) {
+function createServer({
+  projectDir,
+  statePath,
+  runtimeDir = path.dirname(statePath),
+  port = 0,
+  createWorktree = createGitWorktree,
+  listChangedFiles = defaultListChangedFiles
+}) {
   const store = new StateStore(statePath);
   const events = createEventHub();
+  const boundaryWatcher = new BoundaryWatcher({
+    listChangedFiles,
+    onViolation: violation => {
+      const decision = store.createDecision('boundary_violation', violation.sessionId, {
+        files: violation.outOfScope,
+        allowedPatterns: violation.allowedPatterns
+      });
+      const created = { type: 'decision.created', sessionId: violation.sessionId, decision };
+      store.addEvent(violation.sessionId, created.type, created);
+      events.publish(created);
+    }
+  });
   const runner = new SessionRunner({
     onEvent: event => {
       store.addEvent(event.sessionId || null, event.type, event);
@@ -97,7 +117,18 @@ function createServer({ projectDir, statePath, runtimeDir = path.dirname(statePa
 
   const server = http.createServer(async (req, res) => {
     try {
-      await handleRequest({ req, res, projectDir, runtimeDir, store, runner, events, createWorktree });
+      await handleRequest({
+        req,
+        res,
+        projectDir,
+        runtimeDir,
+        store,
+        runner,
+        events,
+        createWorktree,
+        listChangedFiles,
+        boundaryWatcher
+      });
     } catch (error) {
       sendJson(res, 500, { error: error.message });
     }
@@ -114,6 +145,7 @@ function createServer({ projectDir, statePath, runtimeDir = path.dirname(statePa
     },
     close() {
       return new Promise(resolve => {
+        boundaryWatcher.stopAll();
         server.close(resolve);
       });
     }
@@ -145,7 +177,18 @@ function handleProtocolOutput({ store, events, event }) {
   }
 }
 
-async function handleRequest({ req, res, projectDir, runtimeDir, store, runner, events, createWorktree }) {
+async function handleRequest({
+  req,
+  res,
+  projectDir,
+  runtimeDir,
+  store,
+  runner,
+  events,
+  createWorktree,
+  listChangedFiles,
+  boundaryWatcher
+}) {
   const url = new URL(req.url, 'http://127.0.0.1');
   const pathname = url.pathname;
 
@@ -253,6 +296,33 @@ async function handleRequest({ req, res, projectDir, runtimeDir, store, runner, 
     }
 
     sendJson(res, 200, { ...result, changedFiles, decision });
+    return;
+  }
+
+  const watchBoundaryMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/watch-boundary$/);
+  if (req.method === 'POST' && watchBoundaryMatch) {
+    const body = await readBody(req);
+    const sessionId = watchBoundaryMatch[1];
+    const state = store.read();
+    const session = state.sessions.find(item => item.id === sessionId);
+
+    if (!session) {
+      sendJson(res, 404, { error: 'session not found' });
+      return;
+    }
+
+    if (body.enabled === false) {
+      boundaryWatcher.stop(sessionId);
+      sendJson(res, 200, { enabled: false });
+      return;
+    }
+
+    boundaryWatcher.start({
+      sessionId,
+      cwd: session.cwd,
+      allowedPatterns: session.scope.write
+    }, body.intervalMs || 2000);
+    sendJson(res, 200, { enabled: true, intervalMs: body.intervalMs || 2000 });
     return;
   }
 

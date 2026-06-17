@@ -172,6 +172,56 @@ test('creates delegation decisions from cli protocol output', async () => {
   }
 });
 
+test('enables boundary watcher for a session', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const app = createServer({
+    projectDir: dir,
+    statePath: path.join(dir, 'state.json'),
+    port: 0,
+    listChangedFiles: () => ['src/api/session.js']
+  });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    const created = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'auth',
+        command: '/bin/sh',
+        args: ['-lc', 'sleep 0.1']
+      })
+    }).then(res => res.json());
+
+    await fetch(`${base}/api/sessions/${created.id}/scope`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ write: ['src/auth/**'] })
+    });
+
+    const result = await fetch(`${base}/api/sessions/${created.id}/watch-boundary`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: true, intervalMs: 1000 })
+    }).then(res => res.json());
+
+    const state = await fetch(`${base}/api/state`).then(res => res.json());
+    assert.equal(result.enabled, true);
+    assert.equal(state.decisions.filter(item => item.type === 'boundary_violation').length, 1);
+
+    const disabled = await fetch(`${base}/api/sessions/${created.id}/watch-boundary`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: false })
+    }).then(res => res.json());
+    assert.equal(disabled.enabled, false);
+  } finally {
+    await app.close();
+  }
+});
+
 test('serves browser console html', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
   const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
