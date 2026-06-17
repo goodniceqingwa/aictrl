@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { listChangedFiles, parsePorcelainStatus } = require('../src/git');
+const { buildWorktreeAddArgs, createGitWorktree, listChangedFiles, parsePorcelainStatus } = require('../src/git');
 
 test('parses changed files from porcelain status output', () => {
   const output = [
@@ -21,4 +21,19 @@ test('returns an empty list outside git repositories', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-not-git-'));
 
   assert.deepEqual(listChangedFiles(dir), []);
+});
+
+test('builds git worktree add arguments', () => {
+  assert.deepEqual(
+    buildWorktreeAddArgs('/runtime/worktrees/auth', 'aictrl/auth'),
+    ['worktree', 'add', '/runtime/worktrees/auth', '-b', 'aictrl/auth']
+  );
+});
+
+test('does not create worktrees outside git repositories', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-not-git-'));
+  const result = createGitWorktree(dir, path.join(dir, 'worktree'), 'aictrl/test');
+
+  assert.equal(result.ok, false);
+  assert.match(result.error, /not a git repository/i);
 });
