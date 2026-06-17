@@ -1,54 +1,39 @@
 'use strict';
 
-const childProcess = require('node:child_process');
+const { createTerminalProcess } = require('./terminal-backend');
 
 class RunningSession {
-  constructor(id, child) {
+  constructor(id, terminal) {
     this.id = id;
-    this.child = child;
-    this.done = new Promise(resolve => {
-      child.once('exit', (code, signal) => resolve({ code, signal }));
-    });
+    this.terminal = terminal;
   }
 
   wait() {
-    return this.done;
+    return this.terminal.wait();
   }
 }
 
 class SessionRunner {
-  constructor({ onEvent } = {}) {
+  constructor({ onEvent, terminalFactory } = {}) {
     this.onEvent = onEvent || (() => {});
+    this.terminalFactory = terminalFactory || createTerminalProcess;
     this.sessions = new Map();
   }
 
-  start({ id, command, args, cwd, env }) {
-    const child = childProcess.spawn(command, args || [], {
-      cwd,
-      env: { ...process.env, ...(env || {}) },
-      shell: false,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-    const session = new RunningSession(id, child);
+  start({ id, command, args, cwd, env, cols, rows }) {
+    const terminal = this.terminalFactory({ id, command, args: args || [], cwd, env, cols, rows });
+    const session = new RunningSession(id, terminal);
 
     this.sessions.set(id, session);
-    this.emit({ sessionId: id, type: 'session.started', command, args: args || [] });
+    this.emit({ sessionId: id, type: 'session.started', command, args: args || [], backend: terminal.kind });
 
-    child.stdout.on('data', chunk => {
-      this.emit({ sessionId: id, type: 'terminal.output', stream: 'stdout', text: chunk.toString() });
+    terminal.onData((text, stream = 'stdout') => {
+      this.emit({ sessionId: id, type: 'terminal.output', stream, text });
     });
 
-    child.stderr.on('data', chunk => {
-      this.emit({ sessionId: id, type: 'terminal.output', stream: 'stderr', text: chunk.toString() });
-    });
-
-    child.once('exit', (code, signal) => {
+    terminal.onExit(({ code, signal }) => {
       this.sessions.delete(id);
       this.emit({ sessionId: id, type: 'session.exit', code, signal });
-    });
-
-    child.once('error', error => {
-      this.emit({ sessionId: id, type: 'session.error', message: error.message });
     });
 
     return session;
@@ -56,13 +41,15 @@ class SessionRunner {
 
   write(sessionId, text) {
     const session = this.sessions.get(sessionId);
-    if (!session || !session.child.stdin.writable) {
+    if (!session) {
       return false;
     }
 
-    session.child.stdin.write(text);
-    this.emit({ sessionId, type: 'terminal.input', text });
-    return true;
+    const ok = session.terminal.write(text);
+    if (ok) {
+      this.emit({ sessionId, type: 'terminal.input', text });
+    }
+    return ok;
   }
 
   stop(sessionId) {
@@ -71,7 +58,7 @@ class SessionRunner {
       return false;
     }
 
-    session.child.kill('SIGTERM');
+    session.terminal.kill();
     return true;
   }
 

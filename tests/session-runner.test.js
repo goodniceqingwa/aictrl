@@ -44,3 +44,45 @@ test('writes input to a running command', async () => {
 
   assert.equal(events.some(event => event.type === 'terminal.output' && event.text.includes('got:ping')), true);
 });
+
+test('can use an injected terminal factory', async () => {
+  const events = [];
+  const writes = [];
+  const runner = new SessionRunner({
+    onEvent: event => events.push(event),
+    terminalFactory: () => {
+      let dataCallback = () => {};
+      let exitCallback = () => {};
+      return {
+        kind: 'fake',
+        onData(callback) {
+          dataCallback = callback;
+        },
+        onExit(callback) {
+          exitCallback = callback;
+        },
+        write(text) {
+          writes.push(text);
+          dataCallback('fake-output');
+          exitCallback({ code: 0, signal: null });
+          return true;
+        },
+        kill() {},
+        wait: async () => ({ code: 0, signal: null })
+      };
+    }
+  });
+
+  const session = runner.start({
+    id: 's1',
+    command: 'codex',
+    args: [],
+    cwd: process.cwd()
+  });
+
+  runner.write('s1', 'hello\n');
+  await session.wait();
+
+  assert.deepEqual(writes, ['hello\n']);
+  assert.equal(events.some(event => event.type === 'terminal.output' && event.text === 'fake-output'), true);
+});
