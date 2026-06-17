@@ -10,6 +10,7 @@ const { checkBoundary } = require('./boundary');
 const { BoundaryWatcher } = require('./boundary-watcher');
 const { resolveSessionWorkspace } = require('./workspace');
 const { parseProtocolBlocks } = require('./protocol');
+const { buildScopePlanningPrompt } = require('./scope-prompt');
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -242,6 +243,12 @@ async function handleRequest({
       args: session.args,
       cwd: session.cwd
     });
+    if (input.autoPlanScope !== false) {
+      runner.write(session.id, `${buildScopePlanningPrompt({
+        name: session.name,
+        task: session.task
+      })}\n`);
+    }
 
     sendJson(res, 201, store.read().sessions.find(item => item.id === session.id));
     return;

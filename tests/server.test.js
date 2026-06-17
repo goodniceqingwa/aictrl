@@ -172,6 +172,75 @@ test('creates delegation decisions from cli protocol output', async () => {
   }
 });
 
+test('sends scope planning prompt to new cli sessions', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    const created = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'auth-agent',
+        command: '/bin/sh',
+        args: ['-lc', 'read line; printf "%s\\n" "$line"'],
+        task: '实现 refresh token'
+      })
+    }).then(res => res.json());
+
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    const state = await fetch(`${base}/api/state`).then(res => res.json());
+    const input = state.events.find(event => (
+      event.sessionId === created.id
+      && event.type === 'terminal.input'
+      && event.payload.text.includes('AICTRL_SCOPE_PLAN')
+    ));
+
+    assert.equal(Boolean(input), true);
+    assert.match(input.payload.text, /实现 refresh token/);
+  } finally {
+    await app.close();
+  }
+});
+
+test('updates session scope from ai scope plan output', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    const created = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'auth-agent',
+        command: '/bin/sh',
+        args: [
+          '-lc',
+          'printf "AICTRL_SCOPE_PLAN:\\n{\\"write\\":[\\"src/auth/**\\"],\\"read\\":[\\"src/api/**\\"],\\"risky\\":[\\"package.json\\"]}\\nAICTRL_END\\n"'
+        ],
+        task: '实现 refresh token'
+      })
+    }).then(res => res.json());
+
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    const state = await fetch(`${base}/api/state`).then(res => res.json());
+    const session = state.sessions.find(item => item.id === created.id);
+    assert.deepEqual(session.scope.write, ['src/auth/**']);
+    assert.deepEqual(session.scope.read, ['src/api/**']);
+    assert.deepEqual(session.scope.risky, ['package.json']);
+  } finally {
+    await app.close();
+  }
+});
+
 test('enables boundary watcher for a session', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
   const app = createServer({
