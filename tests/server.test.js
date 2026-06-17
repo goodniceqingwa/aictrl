@@ -74,7 +74,10 @@ test('serves browser console html', async () => {
 
   try {
     const html = await fetch(`http://127.0.0.1:${app.port}/`).then(res => res.text());
-    assert.match(html, /AI CLI Orchestrator/);
+    assert.match(html, /多 AI 终端控制台/);
+    assert.match(html, /启动会话/);
+    assert.match(html, /决策队列/);
+    assert.doesNotMatch(html, /Start Session/);
   } finally {
     await app.close();
   }

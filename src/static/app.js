@@ -92,7 +92,7 @@ function renderSessions() {
 
 function renderTerminal() {
   const session = selectedSession();
-  elements.selectedTitle.textContent = session ? session.name : 'No Session Selected';
+  elements.selectedTitle.textContent = session ? session.name : '未选择会话';
 
   if (!session) {
     elements.terminalOutput.textContent = '';
@@ -119,7 +119,7 @@ function renderDecisions() {
   elements.decisionList.innerHTML = '';
 
   if (pending.length === 0) {
-    elements.decisionList.innerHTML = '<div class="meta">No pending decisions</div>';
+    elements.decisionList.innerHTML = '<div class="meta">暂无待处理决策</div>';
     return;
   }
 
