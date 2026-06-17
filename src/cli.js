@@ -35,7 +35,7 @@ function runtimePathForProject(projectDir, homeDir = path.join(os.homedir(), '.a
 async function openProject({ projectDir = process.cwd(), port = 0, stdout = process.stdout } = {}) {
   const runtimePath = runtimePathForProject(projectDir);
   const statePath = path.join(runtimePath, 'state.json');
-  const app = createServer({ projectDir, statePath, port });
+  const app = createServer({ projectDir, runtimeDir: runtimePath, statePath, port });
 
   await app.listen();
   stdout.write(`aictrl running at http://127.0.0.1:${app.port}\n`);

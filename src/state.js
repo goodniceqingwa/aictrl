@@ -46,6 +46,8 @@ class StateStore {
       command: input.command,
       args: input.args || [],
       cwd: input.cwd,
+      workspaceMode: input.workspaceMode || 'project',
+      branch: input.branch || null,
       task: input.task || '',
       status: 'created',
       scope: { write: [], read: [], risky: [] },

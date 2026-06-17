@@ -5,8 +5,9 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { StateStore } = require('./state');
 const { SessionRunner } = require('./session-runner');
-const { listChangedFiles } = require('./git');
+const { createGitWorktree, listChangedFiles } = require('./git');
 const { checkBoundary } = require('./boundary');
+const { resolveSessionWorkspace } = require('./workspace');
 
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
@@ -77,7 +78,7 @@ function createEventHub() {
   return { publish, subscribe };
 }
 
-function createServer({ projectDir, statePath, port = 0 }) {
+function createServer({ projectDir, statePath, runtimeDir = path.dirname(statePath), port = 0, createWorktree = createGitWorktree }) {
   const store = new StateStore(statePath);
   const events = createEventHub();
   const runner = new SessionRunner({
@@ -92,7 +93,7 @@ function createServer({ projectDir, statePath, port = 0 }) {
 
   const server = http.createServer(async (req, res) => {
     try {
-      await handleRequest({ req, res, projectDir, store, runner, events });
+      await handleRequest({ req, res, projectDir, runtimeDir, store, runner, events, createWorktree });
     } catch (error) {
       sendJson(res, 500, { error: error.message });
     }
@@ -115,7 +116,7 @@ function createServer({ projectDir, statePath, port = 0 }) {
   };
 }
 
-async function handleRequest({ req, res, projectDir, store, runner, events }) {
+async function handleRequest({ req, res, projectDir, runtimeDir, store, runner, events, createWorktree }) {
   const url = new URL(req.url, 'http://127.0.0.1');
   const pathname = url.pathname;
 
@@ -136,11 +137,29 @@ async function handleRequest({ req, res, projectDir, store, runner, events }) {
 
   if (req.method === 'POST' && pathname === '/api/sessions') {
     const input = await readBody(req);
+    const workspace = resolveSessionWorkspace({
+      mode: input.workspaceMode || 'project',
+      projectDir,
+      runtimeDir,
+      sessionName: input.name,
+      cwd: input.cwd
+    });
+
+    if (workspace.mode === 'worktree') {
+      const result = createWorktree(projectDir, workspace.cwd, workspace.branch);
+      if (!result.ok) {
+        sendJson(res, 400, { error: result.error || 'failed to create worktree' });
+        return;
+      }
+    }
+
     const session = store.createSession({
       name: input.name,
       command: input.command,
       args: input.args || [],
-      cwd: input.cwd || projectDir,
+      cwd: workspace.cwd,
+      workspaceMode: workspace.mode,
+      branch: workspace.branch || null,
       task: input.task || ''
     });
 

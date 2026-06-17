@@ -31,6 +31,77 @@ test('serves health and creates sessions', async () => {
   await app.close();
 });
 
+test('creates sessions in custom workspaces', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const customDir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-custom-'));
+  const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    const created = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'custom',
+        command: '/bin/sh',
+        args: ['-lc', 'printf done'],
+        workspaceMode: 'custom',
+        cwd: customDir
+      })
+    }).then(res => res.json());
+
+    assert.equal(created.workspaceMode, 'custom');
+    assert.equal(created.cwd, customDir);
+  } finally {
+    await app.close();
+  }
+});
+
+test('creates sessions in git worktree workspaces through injected creator', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const runtimeDir = path.join(dir, 'runtime');
+  const createdWorktrees = [];
+  const app = createServer({
+    projectDir: dir,
+    statePath: path.join(dir, 'state.json'),
+    runtimeDir,
+    port: 0,
+    createWorktree: (projectDir, worktreePath, branchName) => {
+      createdWorktrees.push({ projectDir, worktreePath, branchName });
+      fs.mkdirSync(worktreePath, { recursive: true });
+      return { ok: true };
+    }
+  });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    const created = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'auth agent',
+        command: '/bin/sh',
+        args: ['-lc', 'printf done'],
+        workspaceMode: 'worktree'
+      })
+    }).then(res => res.json());
+
+    assert.equal(created.workspaceMode, 'worktree');
+    assert.equal(created.cwd, path.join(runtimeDir, 'worktrees', 'auth-agent'));
+    assert.deepEqual(createdWorktrees, [{
+      projectDir: dir,
+      worktreePath: path.join(runtimeDir, 'worktrees', 'auth-agent'),
+      branchName: 'aictrl/auth-agent'
+    }]);
+  } finally {
+    await app.close();
+  }
+});
+
 test('sets scope and reports boundary decisions', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
   const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
