@@ -15,7 +15,13 @@ const elements = {
   scopeForm: document.querySelector('#scope-form'),
   boundaryForm: document.querySelector('#boundary-form'),
   boundaryResult: document.querySelector('#boundary-result'),
-  refreshButton: document.querySelector('#refresh-button')
+  refreshButton: document.querySelector('#refresh-button'),
+  watchButton: document.querySelector('#watch-button')
+};
+
+const decisionTypeNames = {
+  boundary_violation: '边界越界',
+  delegation_request: '转交请求'
 };
 
 async function request(path, options = {}) {
@@ -127,7 +133,7 @@ function renderDecisions() {
     const item = document.createElement('div');
     item.className = 'decision-item';
     item.innerHTML = `
-      <strong class="danger">${escapeHtml(decision.type)}</strong>
+      <strong class="danger">${escapeHtml(decisionTypeNames[decision.type] || decision.type)}</strong>
       <div class="meta">${escapeHtml(decision.sessionId)}</div>
       <pre>${escapeHtml(JSON.stringify(decision.payload, null, 2))}</pre>
     `;
@@ -163,7 +169,9 @@ elements.sessionForm.addEventListener('submit', async event => {
       name: form.get('name'),
       command: form.get('command'),
       args: splitArgs(form.get('args') || ''),
-      task: form.get('task') || ''
+      task: form.get('task') || '',
+      workspaceMode: form.get('workspaceMode') || 'project',
+      cwd: form.get('cwd') || undefined
     })
   });
 
@@ -224,6 +232,17 @@ elements.boundaryForm.addEventListener('submit', async event => {
 });
 
 elements.refreshButton.addEventListener('click', loadState);
+
+elements.watchButton.addEventListener('click', async () => {
+  if (!selectedSessionId) return;
+
+  const result = await request(`/api/sessions/${selectedSessionId}/watch-boundary`, {
+    method: 'POST',
+    body: JSON.stringify({ enabled: true, intervalMs: 2000 })
+  });
+  elements.boundaryResult.textContent = JSON.stringify(result, null, 2);
+  await loadState();
+});
 
 const eventSource = new EventSource('/events');
 eventSource.onmessage = () => {

@@ -37,6 +37,18 @@
             任务
             <textarea name="task" rows="3" placeholder="描述这个 AI 会话要做什么"></textarea>
           </label>
+          <label>
+            工作区模式
+            <select name="workspaceMode">
+              <option value="project">当前项目目录</option>
+              <option value="worktree">自动创建 Git worktree</option>
+              <option value="custom">自定义工作目录</option>
+            </select>
+          </label>
+          <label>
+            自定义工作目录
+            <input name="cwd" placeholder="仅自定义模式需要填写">
+          </label>
           <button type="submit">启动会话</button>
         </form>
         <div id="session-list" class="session-list"></div>
@@ -87,6 +99,7 @@
       <div class="panel">
         <div class="panel-header">
           <h2>边界检查</h2>
+          <button id="watch-button" type="button">开启持续边界检查</button>
         </div>
         <form id="boundary-form" class="stack">
           <label>

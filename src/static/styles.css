@@ -23,6 +23,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -37,6 +38,7 @@ button {
 }
 
 input,
+select,
 textarea {
   width: 100%;
   border: 1px solid var(--line);
