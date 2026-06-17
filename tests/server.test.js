@@ -304,6 +304,8 @@ test('serves browser console html', async () => {
     assert.match(html, /工作区模式/);
     assert.match(html, /自动创建 Git worktree/);
     assert.match(html, /持续边界检查/);
+    assert.match(html, /AI 申报范围/);
+    assert.match(html, /人工修正范围/);
     assert.doesNotMatch(html, /Start Session/);
   } finally {
     await app.close();
