@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const childProcess = require('node:child_process');
+const { EventEmitter } = require('node:events');
 const { createTerminalProcess } = require('../src/terminal-backend');
 
 test('uses pty factory when provided', () => {
@@ -55,4 +57,75 @@ test('default backend can run a shell command and capture output', async () => {
 
   assert.equal(output, 'backend-ok');
   assert.equal(exitCode, 0);
+});
+
+test('child process backend returns false when stdin write hits EPIPE', () => {
+  const originalSpawn = childProcess.spawn;
+  childProcess.spawn = () => {
+    const child = new EventEmitter();
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.stdin = {
+      writable: true,
+      write() {
+        const error = new Error('write EPIPE');
+        error.code = 'EPIPE';
+        throw error;
+      }
+    };
+    child.kill = () => {};
+    return child;
+  };
+
+  try {
+    const terminal = createTerminalProcess({
+      command: 'short-lived',
+      args: [],
+      cwd: process.cwd(),
+      ptyFactory: null
+    });
+    let result = null;
+
+    assert.doesNotThrow(() => {
+      result = terminal.write('hello\n');
+    });
+    assert.equal(result, false);
+  } finally {
+    childProcess.spawn = originalSpawn;
+  }
+});
+
+test('child process backend returns false after stdin emits EPIPE', async () => {
+  const originalSpawn = childProcess.spawn;
+  childProcess.spawn = () => {
+    const child = new EventEmitter();
+    const stdin = new EventEmitter();
+    stdin.writable = true;
+    stdin.write = () => {
+      const error = new Error('write EPIPE');
+      error.code = 'EPIPE';
+      process.nextTick(() => stdin.emit('error', error));
+      return true;
+    };
+    child.stdout = new EventEmitter();
+    child.stderr = new EventEmitter();
+    child.stdin = stdin;
+    child.kill = () => {};
+    return child;
+  };
+
+  try {
+    const terminal = createTerminalProcess({
+      command: 'short-lived',
+      args: [],
+      cwd: process.cwd(),
+      ptyFactory: null
+    });
+
+    assert.equal(terminal.write('hello\n'), true);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(terminal.write('again\n'), false);
+  } finally {
+    childProcess.spawn = originalSpawn;
+  }
 });

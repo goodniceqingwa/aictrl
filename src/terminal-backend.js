@@ -75,6 +75,7 @@ function createChildProcess(input) {
   });
   const dataCallbacks = new Set();
   const exitCallbacks = new Set();
+  let stdinClosed = false;
   const exitPromise = new Promise(resolve => {
     child.once('exit', (code, signal) => {
       const event = { code, signal };
@@ -83,6 +84,14 @@ function createChildProcess(input) {
       }
       resolve(event);
     });
+  });
+
+  child.stdin.on?.('error', () => {
+    stdinClosed = true;
+  });
+
+  child.stdin.on?.('close', () => {
+    stdinClosed = true;
   });
 
   child.stdout.on('data', chunk => {
@@ -108,10 +117,18 @@ function createChildProcess(input) {
       exitCallbacks.add(callback);
     },
     write(text) {
-      if (!child.stdin.writable) {
+      if (stdinClosed || !child.stdin.writable) {
         return false;
       }
-      child.stdin.write(text);
+      try {
+        child.stdin.write(text);
+      } catch (error) {
+        if (error.code === 'EPIPE' || error.code === 'ERR_STREAM_DESTROYED') {
+          stdinClosed = true;
+          return false;
+        }
+        throw error;
+      }
       return true;
     },
     resize() {},
