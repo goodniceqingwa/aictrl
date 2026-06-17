@@ -207,7 +207,7 @@ test('sends scope planning prompt to new cli sessions', async () => {
   }
 });
 
-test('updates session scope from ai scope plan output', async () => {
+test('creates scope approval decisions from ai scope plan output', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
   const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
   await app.listen();
@@ -233,9 +233,94 @@ test('updates session scope from ai scope plan output', async () => {
 
     const state = await fetch(`${base}/api/state`).then(res => res.json());
     const session = state.sessions.find(item => item.id === created.id);
+    const decision = state.decisions.find(item => item.type === 'scope_approval');
+    assert.equal(decision.status, 'pending');
+    assert.deepEqual(decision.payload.scope.write, ['src/auth/**']);
+    assert.deepEqual(decision.payload.scope.read, ['src/api/**']);
+    assert.deepEqual(decision.payload.scope.risky, ['package.json']);
+    assert.deepEqual(session.scope.write, []);
+  } finally {
+    await app.close();
+  }
+});
+
+test('approves scope approval decisions into session scope', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    const created = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'auth-agent',
+        command: '/bin/sh',
+        args: [
+          '-lc',
+          'printf "AICTRL_SCOPE_PLAN:\\n{\\"write\\":[\\"src/auth/**\\"],\\"read\\":[\\"src/api/**\\"],\\"risky\\":[]}\nAICTRL_END\\n"'
+        ],
+        task: '实现 refresh token'
+      })
+    }).then(res => res.json());
+
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    let state = await fetch(`${base}/api/state`).then(res => res.json());
+    const decision = state.decisions.find(item => item.type === 'scope_approval');
+    const resolved = await fetch(`${base}/api/decisions/${decision.id}/resolve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'approve' })
+    }).then(res => res.json());
+
+    state = await fetch(`${base}/api/state`).then(res => res.json());
+    const session = state.sessions.find(item => item.id === created.id);
+    assert.equal(resolved.status, 'resolved');
     assert.deepEqual(session.scope.write, ['src/auth/**']);
     assert.deepEqual(session.scope.read, ['src/api/**']);
-    assert.deepEqual(session.scope.risky, ['package.json']);
+  } finally {
+    await app.close();
+  }
+});
+
+test('rejects scope approval decisions without changing session scope', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    const created = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'auth-agent',
+        command: '/bin/sh',
+        args: [
+          '-lc',
+          'printf "AICTRL_SCOPE_PLAN:\\n{\\"write\\":[\\"src/auth/**\\"],\\"read\\":[],\\"risky\\":[]}\nAICTRL_END\\n"'
+        ],
+        task: '实现 refresh token'
+      })
+    }).then(res => res.json());
+
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    let state = await fetch(`${base}/api/state`).then(res => res.json());
+    const decision = state.decisions.find(item => item.type === 'scope_approval');
+    await fetch(`${base}/api/decisions/${decision.id}/resolve`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action: 'reject' })
+    });
+
+    state = await fetch(`${base}/api/state`).then(res => res.json());
+    const session = state.sessions.find(item => item.id === created.id);
+    assert.deepEqual(session.scope.write, []);
   } finally {
     await app.close();
   }
@@ -297,7 +382,9 @@ test('serves browser console html', async () => {
   await app.listen();
 
   try {
-    const html = await fetch(`http://127.0.0.1:${app.port}/`).then(res => res.text());
+    const base = `http://127.0.0.1:${app.port}`;
+    const html = await fetch(`${base}/`).then(res => res.text());
+    const script = await fetch(`${base}/app.js`).then(res => res.text());
     assert.match(html, /多 AI 终端控制台/);
     assert.match(html, /启动会话/);
     assert.match(html, /决策队列/);
@@ -307,6 +394,9 @@ test('serves browser console html', async () => {
     assert.match(html, /AI 申报范围/);
     assert.match(html, /人工修正范围/);
     assert.doesNotMatch(html, /Start Session/);
+    assert.match(script, /范围审批/);
+    assert.match(script, /批准/);
+    assert.match(script, /拒绝/);
   } finally {
     await app.close();
   }

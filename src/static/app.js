@@ -21,7 +21,8 @@ const elements = {
 
 const decisionTypeNames = {
   boundary_violation: '边界越界',
-  delegation_request: '转交请求'
+  delegation_request: '转交请求',
+  scope_approval: '范围审批'
 };
 
 async function request(path, options = {}) {
@@ -137,8 +138,40 @@ function renderDecisions() {
       <div class="meta">${escapeHtml(decision.sessionId)}</div>
       <pre>${escapeHtml(JSON.stringify(decision.payload, null, 2))}</pre>
     `;
+    item.appendChild(renderDecisionActions(decision));
     elements.decisionList.appendChild(item);
   }
+}
+
+function renderDecisionActions(decision) {
+  const actions = document.createElement('div');
+  actions.className = 'decision-actions';
+
+  if (decision.type === 'scope_approval') {
+    actions.appendChild(decisionButton('批准', decision.id, 'approve'));
+    actions.appendChild(decisionButton('拒绝', decision.id, 'reject', 'secondary'));
+    return actions;
+  }
+
+  actions.appendChild(decisionButton('确认处理', decision.id, 'resolve', 'secondary'));
+  return actions;
+}
+
+function decisionButton(label, decisionId, action, variant = '') {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = label;
+  if (variant) {
+    button.className = variant;
+  }
+  button.addEventListener('click', async () => {
+    await request(`/api/decisions/${decisionId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ action })
+    });
+    await loadState();
+  });
+  return button;
 }
 
 function renderScope() {

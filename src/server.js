@@ -166,12 +166,14 @@ function handleProtocolOutput({ store, events, event }) {
 
     if (block.type === 'scope_plan') {
       const payload = block.payload || {};
-      store.setScope(event.sessionId, {
+      const scope = {
         write: Array.isArray(payload.write) ? payload.write : [],
         read: Array.isArray(payload.read) ? payload.read : [],
-        risky: Array.isArray(payload.risky) ? payload.risky : []
-      });
-      const created = { type: 'scope.plan_created', sessionId: event.sessionId, scope: payload };
+        risky: Array.isArray(payload.risky) ? payload.risky : [],
+        reasoning: Array.isArray(payload.reasoning) ? payload.reasoning : []
+      };
+      const decision = store.createDecision('scope_approval', event.sessionId, { scope });
+      const created = { type: 'decision.created', sessionId: event.sessionId, decision };
       store.addEvent(event.sessionId, created.type, created);
       events.publish(created);
     }
@@ -205,6 +207,29 @@ async function handleRequest({
 
   if (req.method === 'GET' && pathname === '/events') {
     events.subscribe(req, res);
+    return;
+  }
+
+  const decisionResolveMatch = pathname.match(/^\/api\/decisions\/([^/]+)\/resolve$/);
+  if (req.method === 'POST' && decisionResolveMatch) {
+    const body = await readBody(req);
+    const state = store.read();
+    const decision = state.decisions.find(item => item.id === decisionResolveMatch[1]);
+
+    if (!decision) {
+      sendJson(res, 404, { error: 'decision not found' });
+      return;
+    }
+
+    if (decision.type === 'scope_approval' && body.action === 'approve') {
+      store.setScope(decision.sessionId, decision.payload.scope || {});
+    }
+
+    const resolved = store.resolveDecision(decision.id, { action: body.action || 'resolve' });
+    const event = { type: 'decision.resolved', sessionId: decision.sessionId, decision: resolved };
+    store.addEvent(decision.sessionId, event.type, event);
+    events.publish(event);
+    sendJson(res, 200, resolved);
     return;
   }
 
