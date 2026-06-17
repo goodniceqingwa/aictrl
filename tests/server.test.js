@@ -66,3 +66,16 @@ test('sets scope and reports boundary decisions', async () => {
 
   await app.close();
 });
+
+test('serves browser console html', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
+  await app.listen();
+
+  try {
+    const html = await fetch(`http://127.0.0.1:${app.port}/`).then(res => res.text());
+    assert.match(html, /AI CLI Orchestrator/);
+  } finally {
+    await app.close();
+  }
+});

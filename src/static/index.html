@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AI CLI Orchestrator</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>AI CLI Orchestrator</h1>
+        <p id="project-path">Connecting...</p>
+      </div>
+      <button id="refresh-button" type="button">Refresh</button>
+    </header>
+
+    <main class="layout">
+      <aside class="panel sessions-panel">
+        <div class="panel-header">
+          <h2>Sessions</h2>
+        </div>
+        <form id="session-form" class="stack">
+          <label>
+            Name
+            <input name="name" value="agent-1" required>
+          </label>
+          <label>
+            Command
+            <input name="command" value="codex" required>
+          </label>
+          <label>
+            Args
+            <input name="args" placeholder="optional shell-like args">
+          </label>
+          <label>
+            Task
+            <textarea name="task" rows="3" placeholder="Describe this agent session"></textarea>
+          </label>
+          <button type="submit">Start Session</button>
+        </form>
+        <div id="session-list" class="session-list"></div>
+      </aside>
+
+      <section class="panel live-panel">
+        <div class="panel-header">
+          <h2 id="selected-title">No Session Selected</h2>
+          <button id="stop-button" type="button">Stop</button>
+        </div>
+        <pre id="terminal-output" class="terminal"></pre>
+        <form id="input-form" class="input-row">
+          <input name="text" placeholder="Send input to selected CLI">
+          <button type="submit">Send</button>
+        </form>
+      </section>
+
+      <aside class="panel decisions-panel">
+        <div class="panel-header">
+          <h2>Decisions</h2>
+        </div>
+        <div id="decision-list" class="decision-list"></div>
+      </aside>
+    </main>
+
+    <section class="inspector">
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Scope</h2>
+        </div>
+        <form id="scope-form" class="scope-grid">
+          <label>
+            Write patterns
+            <textarea name="write" rows="4" placeholder="src/auth/**"></textarea>
+          </label>
+          <label>
+            Read patterns
+            <textarea name="read" rows="4" placeholder="src/api/**"></textarea>
+          </label>
+          <label>
+            Risky patterns
+            <textarea name="risky" rows="4" placeholder="package.json"></textarea>
+          </label>
+          <button type="submit">Save Scope</button>
+        </form>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Boundary Check</h2>
+        </div>
+        <form id="boundary-form" class="stack">
+          <label>
+            Changed files override
+            <textarea name="changedFiles" rows="4" placeholder="Optional. One file per line. Empty uses git status."></textarea>
+          </label>
+          <button type="submit">Check Boundaries</button>
+        </form>
+        <pre id="boundary-result" class="result"></pre>
+      </div>
+    </section>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
