@@ -59,6 +59,24 @@ test('default backend can run a shell command and capture output', async () => {
   assert.equal(exitCode, 0);
 });
 
+test('default backend gives commands a tty for interactive cli clients', async () => {
+  const terminal = createTerminalProcess({
+    id: 's1',
+    command: process.execPath,
+    args: ['-e', 'console.log(`tty:${Boolean(process.stdin.isTTY)}`)'],
+    cwd: process.cwd()
+  });
+  let output = '';
+
+  terminal.onData(data => {
+    output += data;
+  });
+
+  await terminal.wait();
+
+  assert.match(output, /tty:true/);
+});
+
 test('child process backend returns false when stdin write hits EPIPE', () => {
   const originalSpawn = childProcess.spawn;
   childProcess.spawn = () => {

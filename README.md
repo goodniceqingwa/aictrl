@@ -39,7 +39,7 @@ Local-first orchestration for multiple AI CLI coding sessions.
 - 对越界文件生成 `boundary_violation` 决策。
 - 解析 `AICTRL_DELEGATION_REQUEST`，生成转交请求决策。
 - 对选中会话开启持续边界检查。
-- 支持可选 PTY 后端：安装了 `node-pty` 时使用 PTY，否则回退到普通子进程。
+- 默认通过 `node-pty` 给 Codex、Claude、Gemini 这类交互式 CLI 分配真实终端。
 
 ### 安装
 
@@ -216,10 +216,25 @@ node src/cli.js open --port 4321
 ### 当前限制
 
 - 浏览器不会自动打开，需要手动打开终端打印的本地 URL。
-- `node-pty` 是可选依赖，当前不会自动安装；没有它时会回退到普通子进程。
 - 转交请求已经会进入决策队列，但还不会自动把任务路由给另一个会话。
 - 当前没有认证层，默认只绑定 `127.0.0.1`，不要暴露到公网。
 - 还没有发布到 npm registry；当前推荐从 GitHub 安装。
+
+### 常见问题
+
+如果启动 Codex、Claude、Gemini 等交互式 CLI 后很快显示“停止”，并看到：
+
+```text
+Error: stdin is not a terminal
+```
+
+说明当前安装没有成功加载 PTY 后端。请重新安装最新版本：
+
+```bash
+npm install -g github:goodniceqingwa/aictrl
+```
+
+如果仍然出现该错误，通常是 `node-pty` 原生模块没有安装或编译成功。先在安装环境中确认 `node-pty` 能被加载，再重新启动 `aictrl`。
 
 ## English
 
@@ -250,7 +265,7 @@ node src/cli.js open --port 4321
 - Create `boundary_violation` decisions when files are out of scope.
 - Parse `AICTRL_DELEGATION_REQUEST` blocks into delegation decisions.
 - Enable continuous boundary checking for a selected session.
-- Use an optional PTY backend when `node-pty` is installed, with child-process fallback otherwise.
+- Allocate a real terminal through `node-pty` for interactive CLIs such as Codex, Claude, and Gemini.
 
 ### Installation
 
@@ -427,7 +442,22 @@ node src/cli.js open --port 4321
 ### Current Limits
 
 - The browser is not opened automatically. Open the printed local URL manually.
-- `node-pty` is optional and not installed automatically. Without it, `aictrl` falls back to `child_process.spawn`.
 - Delegation requests are shown in the decision queue, but automatic routing is not implemented yet.
 - There is no authentication layer. The server binds to `127.0.0.1`; do not expose it publicly.
 - The package is not published to the npm registry yet. Installing from GitHub is the recommended path for now.
+
+### Troubleshooting
+
+If an interactive CLI such as Codex, Claude, or Gemini stops immediately and prints:
+
+```text
+Error: stdin is not a terminal
+```
+
+the installed package did not load the PTY backend. Reinstall the latest version:
+
+```bash
+npm install -g github:goodniceqingwa/aictrl
+```
+
+If the error remains, `node-pty` was likely not installed or compiled successfully in that environment. Confirm that `node-pty` can be loaded, then restart `aictrl`.

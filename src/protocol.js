@@ -5,6 +5,16 @@ const MARKERS = new Map([
   ['AICTRL_DELEGATION_REQUEST:', 'delegation_request']
 ]);
 
+const PLACEHOLDER_HINTS = [
+  '预计需要修改的路径',
+  '预计只需要读取的路径',
+  '高风险路径',
+  '简要说明为什么需要这些范围',
+  '目标会话名称',
+  '需要对方修改的路径',
+  '需要对方完成的变更'
+];
+
 function parseProtocolBlocks(text) {
   const lines = String(text || '').split(/\r?\n/);
   const blocks = [];
@@ -26,9 +36,14 @@ function parseProtocolBlocks(text) {
     }
 
     try {
+      const payload = JSON.parse(jsonLines.join('\n'));
+      if (containsPlaceholderHint(payload)) {
+        continue;
+      }
+
       blocks.push({
         type,
-        payload: JSON.parse(jsonLines.join('\n'))
+        payload
       });
     } catch (_error) {
       // Invalid model output should not break the daemon event loop.
@@ -36,6 +51,22 @@ function parseProtocolBlocks(text) {
   }
 
   return blocks;
+}
+
+function containsPlaceholderHint(value) {
+  if (typeof value === 'string') {
+    return PLACEHOLDER_HINTS.some(hint => value.includes(hint));
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(item => containsPlaceholderHint(item));
+  }
+
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(item => containsPlaceholderHint(item));
+  }
+
+  return false;
 }
 
 module.exports = {

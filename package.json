@@ -6,6 +6,9 @@
   "bin": {
     "aictrl": "src/cli.js"
   },
+  "dependencies": {
+    "node-pty": "^1.1.0"
+  },
   "scripts": {
     "test": "node --test tests/*.test.js",
     "start": "node src/cli.js open"

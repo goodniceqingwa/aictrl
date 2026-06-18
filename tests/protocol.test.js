@@ -34,3 +34,25 @@ test('ignores invalid JSON blocks without throwing', () => {
   const text = 'AICTRL_SCOPE_PLAN:\n{ invalid\nAICTRL_END';
   assert.deepEqual(parseProtocolBlocks(text), []);
 });
+
+test('ignores echoed prompt template protocol blocks', () => {
+  const text = [
+    'AICTRL_SCOPE_PLAN:',
+    '{',
+    '  "write": ["预计需要修改的路径，例如 src/auth/**"],',
+    '  "read": ["预计只需要读取的路径，例如 src/api/**"],',
+    '  "risky": ["高风险路径，例如 package.json"],',
+    '  "reasoning": ["简要说明为什么需要这些范围"]',
+    '}',
+    'AICTRL_END',
+    'AICTRL_DELEGATION_REQUEST:',
+    '{',
+    '  "toSession": "目标会话名称",',
+    '  "requestedScope": ["需要对方修改的路径"],',
+    '  "requestedChange": "需要对方完成的变更"',
+    '}',
+    'AICTRL_END'
+  ].join('\n');
+
+  assert.deepEqual(parseProtocolBlocks(text), []);
+});
