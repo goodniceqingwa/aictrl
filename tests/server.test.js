@@ -385,6 +385,7 @@ test('serves browser console html', async () => {
     const base = `http://127.0.0.1:${app.port}`;
     const html = await fetch(`${base}/`).then(res => res.text());
     const script = await fetch(`${base}/app.js`).then(res => res.text());
+    const styles = await fetch(`${base}/styles.css`).then(res => res.text());
     assert.match(html, /多 AI 终端控制台/);
     assert.match(html, /启动会话/);
     assert.match(html, /决策队列/);
@@ -397,6 +398,10 @@ test('serves browser console html', async () => {
     assert.match(script, /范围审批/);
     assert.match(script, /批准/);
     assert.match(script, /拒绝/);
+    assert.match(styles, /--neon-green/);
+    assert.match(styles, /dataRain/);
+    assert.match(styles, /scanlineSweep/);
+    assert.match(styles, /terminal::after/);
   } finally {
     await app.close();
   }
