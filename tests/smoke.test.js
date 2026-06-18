@@ -10,3 +10,7 @@ test('exports a version string', () => {
 test('declares node-pty so interactive cli sessions get a real terminal', () => {
   assert.equal(packageJson.dependencies?.['node-pty'], '^1.1.0');
 });
+
+test('declares xterm so browser can render pty ansi output', () => {
+  assert.equal(packageJson.dependencies?.['@xterm/xterm'], '^6.0.0');
+});

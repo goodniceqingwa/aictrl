@@ -2,6 +2,9 @@
 
 let state = { sessions: [], events: [], decisions: [] };
 let selectedSessionId = null;
+let browserTerminal = null;
+let renderedTerminalSessionId = null;
+let renderedTerminalEventCount = 0;
 
 const elements = {
   projectPath: document.querySelector('#project-path'),
@@ -24,6 +27,57 @@ const decisionTypeNames = {
   delegation_request: '转交请求',
   scope_approval: '范围审批'
 };
+
+function initBrowserTerminal() {
+  if (!window.Terminal) {
+    return null;
+  }
+
+  const terminal = new Terminal({
+    cols: 120,
+    rows: 30,
+    convertEol: true,
+    cursorBlink: true,
+    fontFamily: '"JetBrains Mono", "SFMono-Regular", "Cascadia Code", "Consolas", monospace',
+    fontSize: 13,
+    lineHeight: 1.2,
+    theme: {
+      background: '#010806',
+      foreground: '#b9ffe8',
+      cursor: '#00ff9c',
+      selectionBackground: '#0a3f36',
+      black: '#020407',
+      red: '#ff3864',
+      green: '#00ff9c',
+      yellow: '#ffd166',
+      blue: '#00e5ff',
+      magenta: '#b45cff',
+      cyan: '#00e5ff',
+      white: '#d8fff4',
+      brightBlack: '#42615c',
+      brightRed: '#ff6b8a',
+      brightGreen: '#6dffc4',
+      brightYellow: '#ffe39a',
+      brightBlue: '#64f0ff',
+      brightMagenta: '#d4a0ff',
+      brightCyan: '#97f7ff',
+      brightWhite: '#f2fffb'
+    }
+  });
+
+  terminal.open(elements.terminalOutput);
+  terminal.onData(data => {
+    if (!selectedSessionId) return;
+    request(`/api/sessions/${selectedSessionId}/input`, {
+      method: 'POST',
+      body: JSON.stringify({ text: data })
+    }).catch(error => {
+      elements.projectPath.textContent = error.message;
+    });
+  });
+  elements.terminalOutput.classList.add('xterm-mounted');
+  return terminal;
+}
 
 async function request(path, options = {}) {
   const response = await fetch(path, {
@@ -102,21 +156,37 @@ function renderTerminal() {
   elements.selectedTitle.textContent = session ? session.name : '未选择会话';
 
   if (!session) {
-    elements.terminalOutput.textContent = '';
+    if (browserTerminal) {
+      browserTerminal.reset();
+    } else {
+      elements.terminalOutput.textContent = '';
+    }
+    renderedTerminalSessionId = null;
+    renderedTerminalEventCount = 0;
     return;
   }
 
-  const text = state.events
-    .filter(event => event.sessionId === session.id && event.type.startsWith('terminal.'))
-    .map(event => {
-      const payload = event.payload || {};
-      if (event.type === 'terminal.input') {
-        return `> ${payload.text || ''}`;
-      }
-      return payload.text || '';
-    })
-    .join('');
+  const terminalEvents = state.events
+    .filter(event => event.sessionId === session.id && event.type === 'terminal.output');
 
+  if (browserTerminal) {
+    if (renderedTerminalSessionId !== session.id || renderedTerminalEventCount > terminalEvents.length) {
+      browserTerminal.reset();
+      renderedTerminalSessionId = session.id;
+      renderedTerminalEventCount = 0;
+    }
+
+    for (const event of terminalEvents.slice(renderedTerminalEventCount)) {
+      browserTerminal.write(event.payload?.text || '');
+    }
+
+    renderedTerminalEventCount = terminalEvents.length;
+    return;
+  }
+
+  const text = terminalEvents
+    .map(event => event.payload?.text || '')
+    .join('');
   elements.terminalOutput.textContent = text;
   elements.terminalOutput.scrollTop = elements.terminalOutput.scrollHeight;
 }
@@ -283,6 +353,8 @@ eventSource.onmessage = () => {
     elements.projectPath.textContent = error.message;
   });
 };
+
+browserTerminal = initBrowserTerminal();
 
 loadState().catch(error => {
   elements.projectPath.textContent = error.message;

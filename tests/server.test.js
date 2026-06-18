@@ -386,6 +386,8 @@ test('serves browser console html', async () => {
     const html = await fetch(`${base}/`).then(res => res.text());
     const script = await fetch(`${base}/app.js`).then(res => res.text());
     const styles = await fetch(`${base}/styles.css`).then(res => res.text());
+    const xtermCss = await fetch(`${base}/vendor/xterm/xterm.css`);
+    const xtermScript = await fetch(`${base}/vendor/xterm/xterm.js`);
     assert.match(html, /多 AI 终端控制台/);
     assert.match(html, /启动会话/);
     assert.match(html, /决策队列/);
@@ -402,6 +404,13 @@ test('serves browser console html', async () => {
     assert.match(styles, /dataRain/);
     assert.match(styles, /scanlineSweep/);
     assert.match(styles, /terminal::after/);
+    assert.match(html, /\/vendor\/xterm\/xterm.css/);
+    assert.match(html, /\/vendor\/xterm\/xterm.js/);
+    assert.match(script, /new Terminal/);
+    assert.match(script, /browserTerminal\.write/);
+    assert.doesNotMatch(script, /event\.type === 'terminal\.input'/);
+    assert.equal(xtermCss.status, 200);
+    assert.equal(xtermScript.status, 200);
   } finally {
     await app.close();
   }

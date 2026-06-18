@@ -7,6 +7,7 @@
     "aictrl": "src/cli.js"
   },
   "dependencies": {
+    "@xterm/xterm": "^6.0.0",
     "node-pty": "^1.1.0"
   },
   "scripts": {

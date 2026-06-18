@@ -236,6 +236,8 @@ npm install -g github:goodniceqingwa/aictrl
 
 如果仍然出现该错误，通常是 `node-pty` 原生模块没有安装或编译成功。先在安装环境中确认 `node-pty` 能被加载，再重新启动 `aictrl`。
 
+如果页面里看到大量类似 `␛[?2004h`、`␛[1;1H` 的 ANSI 控制码，说明你运行的是旧版本前端。最新版本会用浏览器内置的 xterm 渲染 PTY 输出。重新安装最新 GitHub 版本后再启动即可。
+
 ## English
 
 ### What It Is For
@@ -461,3 +463,5 @@ npm install -g github:goodniceqingwa/aictrl
 ```
 
 If the error remains, `node-pty` was likely not installed or compiled successfully in that environment. Confirm that `node-pty` can be loaded, then restart `aictrl`.
+
+If the page shows raw ANSI escape sequences such as `␛[?2004h` or `␛[1;1H`, you are running an older frontend. The latest version renders PTY output through browser-side xterm. Reinstall the latest GitHub version and restart `aictrl`.

@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>多 AI 终端控制台</title>
+    <link rel="stylesheet" href="/vendor/xterm/xterm.css">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -59,7 +60,7 @@
           <h2 id="selected-title">未选择会话</h2>
           <button id="stop-button" type="button">停止</button>
         </div>
-        <pre id="terminal-output" class="terminal"></pre>
+        <div id="terminal-output" class="terminal"></div>
         <form id="input-form" class="input-row">
           <input name="text" placeholder="发送输入到选中的 CLI">
           <button type="submit">发送</button>
@@ -112,6 +113,7 @@
       </div>
     </section>
 
+    <script src="/vendor/xterm/xterm.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

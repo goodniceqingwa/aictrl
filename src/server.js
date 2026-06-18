@@ -57,6 +57,15 @@ function staticContentType(filePath) {
   return 'application/octet-stream';
 }
 
+function xtermAssetPath(pathname) {
+  const assets = {
+    '/vendor/xterm/xterm.css': path.join(__dirname, '..', 'node_modules', '@xterm', 'xterm', 'css', 'xterm.css'),
+    '/vendor/xterm/xterm.js': path.join(__dirname, '..', 'node_modules', '@xterm', 'xterm', 'lib', 'xterm.js')
+  };
+
+  return assets[pathname] || null;
+}
+
 function createEventHub() {
   const clients = new Set();
 
@@ -359,6 +368,12 @@ async function handleRequest({
   }
 
   if (req.method === 'GET') {
+    const vendorPath = xtermAssetPath(pathname);
+    if (vendorPath && fs.existsSync(vendorPath)) {
+      sendText(res, 200, fs.readFileSync(vendorPath), staticContentType(vendorPath));
+      return;
+    }
+
     const staticRoot = path.join(__dirname, 'static');
     const filePath = pathname === '/'
       ? path.join(staticRoot, 'index.html')
