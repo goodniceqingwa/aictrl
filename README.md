@@ -120,6 +120,13 @@ state: ~/.aictrl/projects/<project-id>/state.json
 
 `aictrl` 只把这些命令当作真实终端进程来管理。它不会调用 AI SDK，也不会实现自己的聊天模型。
 
+### 管理会话
+
+选择一个会话后，可以在终端面板右上角执行：
+
+- 停止：停止该会话背后的 CLI 进程，保留会话、终端输出和决策记录。
+- 删除：停止该会话背后的 CLI 进程，并清理该会话、终端输出和未处理决策。
+
 ### 工作区模式
 
 创建会话时可以选择：
@@ -347,6 +354,13 @@ Task: Echo input for testing
 ```
 
 `aictrl` treats these as terminal processes. It does not call an AI SDK and does not implement a custom chat client.
+
+### Managing Sessions
+
+After selecting a session, use the controls in the upper-right corner of the terminal panel:
+
+- Stop: stop the CLI process while keeping the session, terminal output, and decisions.
+- Delete: stop the CLI process and remove the session, terminal output, and pending decisions.
 
 ### Workspace Modes
 

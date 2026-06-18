@@ -90,6 +90,14 @@ function createEventHub() {
   return { publish, subscribe };
 }
 
+function sessionExists(store, sessionId) {
+  if (!sessionId) {
+    return true;
+  }
+
+  return store.read().sessions.some(session => session.id === sessionId);
+}
+
 function createServer({
   projectDir,
   statePath,
@@ -103,6 +111,10 @@ function createServer({
   const boundaryWatcher = new BoundaryWatcher({
     listChangedFiles,
     onViolation: violation => {
+      if (!sessionExists(store, violation.sessionId)) {
+        return;
+      }
+
       const decision = store.createDecision('boundary_violation', violation.sessionId, {
         files: violation.outOfScope,
         allowedPatterns: violation.allowedPatterns
@@ -114,6 +126,10 @@ function createServer({
   });
   const runner = new SessionRunner({
     onEvent: event => {
+      if (!sessionExists(store, event.sessionId)) {
+        return;
+      }
+
       store.addEvent(event.sessionId || null, event.type, event);
       if (event.type === 'terminal.output') {
         handleProtocolOutput({ store, events, event });
@@ -300,6 +316,26 @@ async function handleRequest({
   if (req.method === 'POST' && stopMatch) {
     const ok = runner.stop(stopMatch[1]);
     sendJson(res, ok ? 200 : 404, { ok });
+    return;
+  }
+
+  const deleteSessionMatch = pathname.match(/^\/api\/sessions\/([^/]+)$/);
+  if (req.method === 'DELETE' && deleteSessionMatch) {
+    const sessionId = deleteSessionMatch[1];
+    const state = store.read();
+    const existing = state.sessions.find(item => item.id === sessionId);
+
+    if (!existing) {
+      sendJson(res, 404, { error: 'session not found' });
+      return;
+    }
+
+    const stopped = runner.stop(sessionId);
+    boundaryWatcher.stop(sessionId);
+    const deleted = store.deleteSession(sessionId);
+    const event = { type: 'session.deleted', sessionId, session: deleted, stopped };
+    events.publish(event);
+    sendJson(res, 200, { ok: true, session: deleted, stopped });
     return;
   }
 

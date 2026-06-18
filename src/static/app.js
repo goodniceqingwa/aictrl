@@ -14,6 +14,7 @@ const elements = {
   terminalOutput: document.querySelector('#terminal-output'),
   inputForm: document.querySelector('#input-form'),
   stopButton: document.querySelector('#stop-button'),
+  deleteButton: document.querySelector('#delete-button'),
   decisionList: document.querySelector('#decision-list'),
   scopeForm: document.querySelector('#scope-form'),
   boundaryForm: document.querySelector('#boundary-form'),
@@ -113,6 +114,10 @@ async function loadState() {
   state = await request('/api/state');
   elements.projectPath.textContent = health.projectDir;
 
+  if (!state.sessions.some(session => session.id === selectedSessionId)) {
+    selectedSessionId = null;
+  }
+
   if (!selectedSessionId && state.sessions.length > 0) {
     selectedSessionId = state.sessions[0].id;
   }
@@ -135,18 +140,32 @@ function renderSessions() {
   elements.sessionList.innerHTML = '';
 
   for (const session of state.sessions) {
-    const item = document.createElement('button');
-    item.type = 'button';
+    const item = document.createElement('div');
     item.className = `session-item${session.id === selectedSessionId ? ' active' : ''}`;
-    item.innerHTML = `
+
+    const selectButton = document.createElement('button');
+    selectButton.type = 'button';
+    selectButton.className = 'session-select';
+    selectButton.innerHTML = `
       <strong>${escapeHtml(session.name)}</strong>
       <div class="meta">${escapeHtml(session.status)} · ${escapeHtml(session.command)} ${escapeHtml((session.args || []).join(' '))}</div>
       <div class="meta">${escapeHtml(session.task || '')}</div>
     `;
-    item.addEventListener('click', () => {
+    selectButton.addEventListener('click', () => {
       selectedSessionId = session.id;
       render();
     });
+
+    const deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'danger-button session-delete';
+    deleteButton.textContent = '删除';
+    deleteButton.addEventListener('click', async () => {
+      await deleteSession(session.id);
+    });
+
+    item.appendChild(selectButton);
+    item.appendChild(deleteButton);
     elements.sessionList.appendChild(item);
   }
 }
@@ -154,6 +173,8 @@ function renderSessions() {
 function renderTerminal() {
   const session = selectedSession();
   elements.selectedTitle.textContent = session ? session.name : '未选择会话';
+  elements.stopButton.disabled = !session;
+  elements.deleteButton.disabled = !session;
 
   if (!session) {
     if (browserTerminal) {
@@ -263,6 +284,22 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
+async function deleteSession(sessionId = selectedSessionId) {
+  if (!sessionId) return;
+
+  const session = state.sessions.find(item => item.id === sessionId);
+  const name = session?.name || sessionId;
+  if (!window.confirm(`删除会话「${name}」？运行中的 CLI 会被停止，相关终端输出和待处理决策会被清理。`)) {
+    return;
+  }
+
+  await request(`/api/sessions/${sessionId}`, { method: 'DELETE' });
+  if (selectedSessionId === sessionId) {
+    selectedSessionId = null;
+  }
+  await loadState();
+}
+
 elements.sessionForm.addEventListener('submit', async event => {
   event.preventDefault();
   const form = new FormData(elements.sessionForm);
@@ -300,6 +337,10 @@ elements.stopButton.addEventListener('click', async () => {
 
   await request(`/api/sessions/${selectedSessionId}/stop`, { method: 'POST', body: '{}' });
   await loadState();
+});
+
+elements.deleteButton.addEventListener('click', async () => {
+  await deleteSession();
 });
 
 elements.scopeForm.addEventListener('submit', async event => {

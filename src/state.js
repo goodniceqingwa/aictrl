@@ -72,6 +72,20 @@ class StateStore {
     return session;
   }
 
+  deleteSession(id) {
+    const state = this.read();
+    const index = state.sessions.findIndex(item => item.id === id);
+    if (index === -1) {
+      return null;
+    }
+
+    const [session] = state.sessions.splice(index, 1);
+    state.events = state.events.filter(event => event.sessionId !== id);
+    state.decisions = state.decisions.filter(decision => decision.sessionId !== id);
+    this.write(state);
+    return session;
+  }
+
   addEvent(sessionId, type, payload) {
     const state = this.read();
     const event = {

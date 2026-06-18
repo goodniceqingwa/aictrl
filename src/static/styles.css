@@ -236,6 +236,13 @@ textarea {
     rgba(2, 13, 16, 0.9);
 }
 
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .panel h2 {
   color: var(--neon-cyan);
   font-size: 14px;
@@ -276,9 +283,10 @@ label {
 }
 
 .session-item {
-  text-align: left;
-  color: var(--text);
-  cursor: pointer;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 9px;
+  align-items: start;
 }
 
 .session-item:hover {
@@ -291,6 +299,31 @@ label {
   outline: 1px solid rgba(0, 255, 156, 0.58);
   box-shadow: inset 0 0 18px rgba(0, 255, 156, 0.12), 0 0 20px rgba(0, 255, 156, 0.28);
   animation: neonPulse 1.5s ease-in-out infinite;
+}
+
+.session-select {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+.session-select:hover,
+.session-select:active {
+  color: var(--text);
+  transform: none;
+  box-shadow: none;
+}
+
+.session-delete {
+  min-width: 54px;
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 .session-item strong,
@@ -337,6 +370,28 @@ button.secondary {
     rgba(1, 10, 14, 0.92);
   color: #cffaff;
   box-shadow: inset 0 0 12px rgba(0, 229, 255, 0.08), 0 0 12px rgba(0, 229, 255, 0.12);
+}
+
+button.danger-button {
+  border-color: rgba(255, 56, 100, 0.74);
+  background:
+    linear-gradient(180deg, rgba(255, 56, 100, 0.2), rgba(255, 56, 100, 0.05)),
+    rgba(16, 2, 8, 0.92);
+  color: #ffd5de;
+  box-shadow: inset 0 0 12px rgba(255, 56, 100, 0.1), 0 0 14px rgba(255, 56, 100, 0.2);
+  text-shadow: 0 0 9px rgba(255, 56, 100, 0.62);
+}
+
+button.danger-button:hover {
+  border-color: #ff6b8a;
+  box-shadow: inset 0 0 16px rgba(255, 56, 100, 0.18), 0 0 22px rgba(255, 56, 100, 0.32);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+  box-shadow: none;
 }
 
 #terminal-output.terminal {

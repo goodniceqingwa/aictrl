@@ -102,6 +102,53 @@ test('creates sessions in git worktree workspaces through injected creator', asy
   }
 });
 
+test('deletes sessions and ignores later terminal events from deleted sessions', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
+  const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
+  await app.listen();
+
+  const base = `http://127.0.0.1:${app.port}`;
+
+  try {
+    const created = await fetch(`${base}/api/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        name: 'sleepy',
+        command: '/bin/sh',
+        args: ['-lc', 'sleep 2'],
+        autoPlanScope: false
+      })
+    }).then(res => res.json());
+
+    await fetch(`${base}/api/sessions/${created.id}/scope`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ write: ['src/auth/**'] })
+    });
+
+    await fetch(`${base}/api/check-boundaries`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ sessionId: created.id, changedFiles: ['src/api/session.js'] })
+    });
+
+    const deleted = await fetch(`${base}/api/sessions/${created.id}`, {
+      method: 'DELETE'
+    }).then(res => res.json());
+    await new Promise(resolve => setTimeout(resolve, 80));
+
+    const state = await fetch(`${base}/api/state`).then(res => res.json());
+    assert.equal(deleted.ok, true);
+    assert.equal(deleted.session.id, created.id);
+    assert.deepEqual(state.sessions, []);
+    assert.deepEqual(state.events, []);
+    assert.deepEqual(state.decisions, []);
+  } finally {
+    await app.close();
+  }
+});
+
 test('sets scope and reports boundary decisions', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-server-'));
   const app = createServer({ projectDir: dir, statePath: path.join(dir, 'state.json'), port: 0 });
@@ -396,10 +443,13 @@ test('serves browser console html', async () => {
     assert.match(html, /持续边界检查/);
     assert.match(html, /AI 申报范围/);
     assert.match(html, /人工修正范围/);
+    assert.match(html, /删除/);
     assert.doesNotMatch(html, /Start Session/);
     assert.match(script, /范围审批/);
     assert.match(script, /批准/);
     assert.match(script, /拒绝/);
+    assert.match(script, /deleteSession/);
+    assert.match(script, /method: 'DELETE'/);
     assert.match(styles, /--neon-green/);
     assert.match(styles, /dataRain/);
     assert.match(styles, /scanlineSweep/);

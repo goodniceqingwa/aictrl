@@ -47,3 +47,23 @@ test('sets session scope', () => {
 
   assert.deepEqual(store.read().sessions[0].scope.write, ['src/auth/**']);
 });
+
+test('deletes sessions with their events and decisions', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aictrl-state-'));
+  const store = new StateStore(path.join(dir, 'state.json'));
+  const session = store.createSession({ name: 'auth', command: 'node', cwd: dir, task: 'work' });
+  const other = store.createSession({ name: 'api', command: 'node', cwd: dir, task: 'work' });
+  store.addEvent(session.id, 'terminal.output', { text: 'hello' });
+  store.addEvent(other.id, 'terminal.output', { text: 'keep' });
+  store.createDecision('boundary_violation', session.id, { files: ['src/api/session.js'] });
+  store.createDecision('boundary_violation', other.id, { files: ['src/api/routes.js'] });
+
+  const deleted = store.deleteSession(session.id);
+  const state = store.read();
+
+  assert.equal(deleted.id, session.id);
+  assert.deepEqual(state.sessions.map(item => item.id), [other.id]);
+  assert.deepEqual(state.events.map(item => item.sessionId), [other.id]);
+  assert.deepEqual(state.decisions.map(item => item.sessionId), [other.id]);
+  assert.equal(store.deleteSession(session.id), null);
+});
